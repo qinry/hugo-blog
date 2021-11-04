@@ -1,0 +1,92 @@
+logoText = "qinry"
+logoType = "short" # long, short
+description = "槎城小子的博客，记录所学所想"
+custom_css = []
+custom_js = []
+useFaviconGenerator = true # https://www.favicon-generator.org/
+meta_image = ""
+themecolor = ""
+
+themeOptions = ["dark", "light"]
+notAllowedTypesInHome = []
+notAllowedTypesInHomeSidebar = [ "archive"]
+notAllowedTypesInArchive = []
+notAllowedTypesInHomeFeed = ["archive"]
+
+viewportSize = "normal" # widest, wider, wide, normal, narrow
+enableUiAnimation = true
+hideSingleContentsWhenJSDisabled = false
+enablePinnedPosts = true
+minItemsToShowInTagCloud = 1 # Minimum items to show in tag cloud
+
+# appbar
+enableAppbarSearchIcon = true
+enableAppbarLangIcon = false
+
+# header
+homeHeaderType = "text" # text, img, slide, typewriter
+hideHomeHeaderWhenMobile = false
+
+# menu
+showMobileMenuTerms = ["tags", "categories", "series"]
+
+# search
+enableSearch = true
+enableSearchHighlight = true
+searchResultPosition = "main" 
+
+
+# body
+enableBreadcrumb = true
+enableGoToTop = true
+enableWhoami = false
+summaryShape = "classic" # card, classic, compact
+archiveGroupByDate = "2006-01" # "2006-01": group by month, "2006": group by year
+archivePaginate = 20
+paginateWindow = 1
+talksPaginate = 5
+talksGroupByDate = "2006"
+pubPaginate = 20
+writtenTimeIcon = "📅"
+modifiedTimeIcon = "📝"
+readingTimeIcon = "☕"
+authorIcon = "✍️"
+pagePvIcon = "👀"
+pinIcon = "📌"
+tagIcon = "🏷️"
+publicationIcon = "📚"
+typeIcon = "🎯"
+
+# whoami
+myname = "槎城小子"
+email = "lixiaoqin490@gmail.com"
+whoami = "Java爱好者"
+useGravatar = false
+location = "China"
+link = "https://github.com/qinry"
+
+# sidebar
+enableBio = true
+enableBioImage = false
+enableSidebar = true
+enableSidebarTags = true
+enableSidebarSeries = true
+enableSidebarCategories = true
+enableHomeSidebarTitles = false
+enableListSidebarTitles = true
+enableToc = true
+hideToc = false
+tocFolding = true
+tocPosition = "inner" # inner, outer
+enableTocSwitch = true
+itemsPerCategory = 5
+sidebarPosition = "right"
+tocLevels = ["h2", "h3", "h4"]
+enableSidebarPostsByOrder = false
+
+# footer
+showPoweredBy = true
+enableThemeChange = true
+
+[socialOptions]
+  email = "mailto:lixiaoqin490@email.com"
