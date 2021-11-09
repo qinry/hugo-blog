@@ -2,7 +2,7 @@
 title: "Mybatis 快速入门"
 date: 2021-11-09T09:46:00+08:00
 description: "Mybatis 快速入门"
-draft: true
+draft: false
 hideToc: false
 enableToc: true
 enableTocContent: true
