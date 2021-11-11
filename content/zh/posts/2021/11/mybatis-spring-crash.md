@@ -8,6 +8,7 @@ enableToc: true
 enableTocContent: true
 tags:
 - mybatis
+- spring
 - gradle
 - orm
 categories:
