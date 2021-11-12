@@ -84,7 +84,7 @@ rootProject.name = 'mybatis-spring-boot-starter-sample'
 
 ## 设置属性
 
-Spring Boot 起步依赖提供了大量的自动配置类，项目启动时会加载它们，所以我们减少了甚至不用配置程序，体现了它的理念——“约定大与配置”。当然可编写 `application.properties` 文件，此文件可用来自定义设置程序的属性来修改程序的行为。
+Spring Boot 起步依赖提供了大量的自动配置类，项目启动时会加载它们，所以我们减少了甚至不用配置程序，体现了它的理念——“约定大于配置”。当然可编写 `application.properties` 文件，此文件可用来自定义设置程序的属性来修改程序的行为。
 
 ```
 spring.datasource.url=jdbc:mysql://localhost:3306/testdb?serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8
@@ -198,7 +198,7 @@ public class Grade implements Serializable {
 
 ## 编写 xml 映射文件
 
-```xml:StudentMapper.xml
+```xml:com/owk/mapper/StudentMapper.xml
 <?xml version="1.0" encoding="UTF-8" ?>
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
