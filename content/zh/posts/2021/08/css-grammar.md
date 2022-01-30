@@ -483,7 +483,7 @@ h2 {
 
 HTML
 ```
-<h2>将进军</h2>
+<h2>将进酒</h2>
 <p class="p1">君不见黄河之水天上来，奔流到海不复回。</p>
 <p>君不见高堂明镜悲白发，朝如青丝暮成雪。</p>
 <p>人生得意须尽欢，莫使金樽空对月。</p>
@@ -545,7 +545,7 @@ HTML
     <img src="resources/image/1.png" alt="image" width="144px" height="90px">
     <span>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</span>
 </p>
-<h2>将进军</h2>
+<h2>将进酒</h2>
 <p class="p1">君不见黄河之水天上来，奔流到海不复回。</p>
 <p>君不见高堂明镜悲白发，朝如青丝暮成雪。</p>
 <p class="p3">人生得意须尽欢，莫使金樽空对月。</p>
