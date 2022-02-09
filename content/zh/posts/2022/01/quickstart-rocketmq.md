@@ -8,8 +8,9 @@ enableToc: true
 enableTocContent: true
 tags:
 - rocketmq
-categories:
 - mq
+categories:
+- java
 ---
 
 ## 一、简介
