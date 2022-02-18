@@ -1151,7 +1151,389 @@ public class TransactionListenerImpl implements TransactionListener {
 }
 ```
 
-## 十、总结
+## 十、RocketMQ 整合 Spring
+
+需要创建两个项目，一个生产者和一个消费者。
+
+首先，它们都要 Maven 引入依赖，在 Spring Boot 起步依赖的基础上，添加 `rocketmq-spring-boot-starter`：
+
+```xml:pom.xml
+<dependency>
+    <groupId>org.apache.rocketmq</groupId>
+    <artifactId>rocketmq-spring-boot-starter</artifactId>
+    <version>2.0.3</version>
+</dependency>
+```
+### 10.1 设置生产者属性
+
+```yml:application.yml
+rocketmq:
+  # 名称服务器的地址
+  name-server: 10.119.6.210:9876;127.0.0.1:9876
+  producer:
+    # 生产者组
+    group: my-group1
+    # 发送消息超时时间
+    sendMessageTimeout: 300000
+    # 如果有安全认证需要，使用AK/SK对称加密
+    access-key: AK # 标识用户
+    secret-key: SK # 认证密钥
+# 应用代码自定义的属性
+demo:
+  rocketmq:
+    # 生产者要发送的主题
+    topic: string-topic
+    orderTopic: order-paid-topic
+    msgExtTopic: message-ext-topic
+    transTopic: spring-transaction-topic
+    # 额外的名称服务器地址
+    extNameServer: 10.119.6.210:9876
+```
+
+### 10.2 生产者用例
+
+编写一个业务领域对象，作为业务要做消息发送和接受的例子
+
+```java:OrderPaidEvent.java
+@Data
+@AllArgsConstructor
+@NoArgsConstructor
+public class OrderPaidEvent implements Serializable {
+    private String orderId;
+
+    private BigDecimal paidMoney;
+
+}
+```
+
+编写一个自定义的RocketMQTemplate，模拟使用扩展的名称服务器
+
+```java:ExtRocketMQTemplate.java
+@ExtRocketMQTemplateConfiguration(nameServer = "${demo.rocketmq.extNameServer}")
+public class ExtRocketMQTemplate extends RocketMQTemplate {
+}
+```
+
+使用 RocketMQTemplate 发送消息的方法有：
+
+```java
+# 同步发送
+# String 消息 #
+syncSend(String topic, String msg);
+# Message 携带的 String 消息 #
+syncSend(String topic, Message msg);
+# 异步发送
+# 自定义类型消息 #
+asyncSend(String topic, Object msg, SendCallback);
+# 带标签发送
+convertAndSend(String tag, String msg);
+# 批量发送
+syncSend(String topic, List<Message> msgs, int timeout);
+# 事务发送
+sendMessageInTransaction(String group, String tag, Message msg, Object args);
+```
+
+更多的方法参见，RocketMQTemplate 的源代码。
+
+返回的结果类型为 `SendResult`。
+
+如何创建 Message 对象，使用 MessageBuilder 类的静态方法：
+
+```java
+// 消息体是泛型，这里举了String的例子
+MessageBuilder.withPayload("消息体")
+    .setHeader(RocketMQHeaders.KEYS, "KEY_1")
+    .build();
+```
+
+更具体的发送实例：
+
+```java
+// 设置事务消息生产组
+private static final String TX_PGROUP_NAME = "myTxProducerGroup";
+// 默认 RocketMQTemplate 实例
+@Resource
+private RocketMQTemplate rocketMQTemplate;
+// 以下是主题
+@Value("${demo.rocketmq.transTopic}")
+private String springTransTopic;
+@Value("${demo.rocketmq.topic}")
+private String springTopic;
+@Value("${demo.rocketmq.orderTopic}")
+private String orderPaidTopic;
+@Value("${demo.rocketmq.msgExtTopic}")
+private String msgExtTopic;
+// 自定义的 RocketMQTemplate
+@Resource(name = "extRocketMQTemplate")
+private RocketMQTemplate extRocketMQTemplate;
+
+
+// 使用默认 RocketMQTemplate 发送字符串
+SendResult sendResult = rocketMQTemplate.syncSend(springTopic, "Hello, World!");
+System.out.printf("syncSend1 to topic %s sendResult=%s %n", springTopic, sendResult);
+
+// 使用自定义的 RocketMQTemplate
+sendResult = extRocketMQTemplate.syncSend(springTopic, "Hello, World!");
+System.out.printf("extRocketMQTemplate.syncSend1 to topic %s sendResult=%s %n", springTopic, sendResult);
+
+// 发送 Message 对象
+sendResult = rocketMQTemplate.syncSend(springTopic, MessageBuilder.withPayload("Hello, World! I'm from spring message").build());
+System.out.printf("syncSend2 to topic %s sendResult=%s %n", springTopic, sendResult);
+
+// 发送用户自定义对象
+rocketMQTemplate.asyncSend(orderPaidTopic, new OrderPaidEvent("T_001", new BigDecimal("88.00")), new SendCallback() {
+    @Override
+    public void onSuccess(SendResult var1) {
+        System.out.printf("async onSucess SendResult=%s %n", var1);
+    }
+
+    @Override
+    public void onException(Throwable var1) {
+        System.out.printf("async onException Throwable=%s %n", var1);
+    }
+
+});
+
+// 发送标签消息
+rocketMQTemplate.convertAndSend(msgExtTopic + ":tag0", "I'm from tag0");  // tag0 不会被消费者选中
+System.out.printf("syncSend topic %s tag %s %n", msgExtTopic, "tag0");
+rocketMQTemplate.convertAndSend(msgExtTopic + ":tag1", "I'm from tag1");
+System.out.printf("syncSend topic %s tag %s %n", msgExtTopic, "tag1");
+
+
+// 批量发送
+List<Message> msgs = new ArrayList<Message>();
+for (int i = 0; i < 10; i++) {
+    msgs.add(MessageBuilder.withPayload("Hello RocketMQ Batch Msg#" + i).
+            setHeader(RocketMQHeaders.KEYS, "KEY_" + i).build());
+}
+
+SendResult sr = rocketMQTemplate.syncSend(springTopic, msgs, 60000);
+
+System.out.printf("--- Batch messages send result :" + sr);
+```
+
+发送事务消息，还需要编写事务消息监听器：
+
+消息监听器做两件事：执行当前事务和回查当前事务，都要返回事务的状态。
+
+事务状态有：1.提交 2.回滚 3.未知
+
+> 提交和回滚状态的消息不会在检查事务方法中被检查。事务未知状态，需要调用事务状态回查，确定此消息是提交还是回滚。
+
+```java
+// 事务发送消息
+String[] tags = new String[]{"TagA", "TagB", "TagC", "TagD", "TagE"};
+for (int i = 0; i < 10; i++) {
+    try {
+
+        Message msg = MessageBuilder.withPayload("Hello RocketMQ " + i).
+                setHeader(RocketMQHeaders.KEYS, "KEY_" + i).build();
+        SendResult sendResult = rocketMQTemplate.sendMessageInTransaction(TX_PGROUP_NAME,
+                springTransTopic + ":" + tags[i % tags.length], msg, null);
+        System.out.printf("------ send Transactional msg body = %s , sendResult=%s %n",
+                msg.getPayload(), sendResult.getSendStatus());
+
+        Thread.sleep(10);
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+
+// 事务监听器
+ @RocketMQTransactionListener(
+   txProducerGroup = TX_PGROUP_NAME,
+   accessKey = "AK", // 该属性未设置，访问application中 "rocketmq.producer.access-key"
+   secretKey = "SK" // 该属性未设置，访问application中 "rocketmq.producer.secret-key"
+)
+class TransactionListenerImpl implements RocketMQLocalTransactionListener {
+    private AtomicInteger transactionIndex = new AtomicInteger(0);
+
+    private ConcurrentHashMap<String, Integer> localTrans = new ConcurrentHashMap<String, Integer>();
+
+    @Override
+    public RocketMQLocalTransactionState executeLocalTransaction(Message msg, Object arg) {
+        String transId = (String)msg.getHeaders().get(RocketMQHeaders.PREFIX + RocketMQHeaders.TRANSACTION_ID);
+        System.out.printf("#### executeLocalTransaction is executed, msgTransactionId=%s %n",
+                transId);
+        int value = transactionIndex.getAndIncrement();
+        int status = value % 3;
+        localTrans.put(transId, status);
+        if (status == 0) {
+            System.out.printf("    # COMMIT # Simulating msg %s related local transaction exec succeeded! ### %n", msg.getPayload());
+            return RocketMQLocalTransactionState.COMMIT;
+        }
+
+        if (status == 1) {
+            System.out.printf("    # ROLLBACK # Simulating %s related local transaction exec failed! %n", msg.getPayload());
+            return RocketMQLocalTransactionState.ROLLBACK;
+        }
+
+        System.out.printf("    # UNKNOW # Simulating %s related local transaction exec UNKNOWN! \n");
+        return RocketMQLocalTransactionState.UNKNOWN;
+    }
+
+    @Override
+    public RocketMQLocalTransactionState checkLocalTransaction(Message msg) {
+        String transId = (String)msg.getHeaders().get(RocketMQHeaders.PREFIX + RocketMQHeaders.TRANSACTION_ID);
+        RocketMQLocalTransactionState retState = RocketMQLocalTransactionState.COMMIT;
+        Integer status = localTrans.get(transId);
+        if (null != status) {
+            switch (status) {
+                case 0:
+                    retState = RocketMQLocalTransactionState.UNKNOWN;
+                    break;
+                case 1:
+                    retState = RocketMQLocalTransactionState.COMMIT;
+                    break;
+                case 2:
+                    retState = RocketMQLocalTransactionState.ROLLBACK;
+                    break;
+            }
+        }
+        System.out.printf("------ !!! checkLocalTransaction is executed once," +
+                        " msgTransactionId=%s, TransactionState=%s status=%s %n",
+                transId, retState, status);
+        return retState;
+    }
+}
+```
+
+### 10.3 设置消费者属性
+
+```yml:application.yml
+spring:
+  application:
+    # 设置应用名称
+    name: rocketmq-consume-demo
+rocketmq:
+  # 设置名称服务器地址
+  name-server: 10.119.6.210:9876
+  consumer:
+    access-key: AK
+    secret-key: SK
+# 应用代码自定义的属性
+demo:
+  rocketmq:
+    # 消息主题
+    topic: string-topic
+    orderTopic: order-paid-topic
+    msgExtTopic: message-ext-topic
+    transTopic: spring-transaction-topic
+    # 另一个不同的全局名称服务器地址设置，但出于演示这里和上面的一致
+    myNameServer: 10.119.6.210:9876
+```
+
+### 10.4 消费者示例
+
+消费者大致需要实现 `RocketMQListener` 接口，使用注解 `@RocketMQMessageListener` 设置消费组和主题，还有标签等等。
+
+接受 String 消息：
+
+```java:StringConsumer.java
+@Service
+@RocketMQMessageListener(
+  topic = "${demo.rocketmq.topic}", 
+  consumerGroup = "string_consumer",
+  accessKey = "AK", // 该属性未设置，访问application中 "rocketmq.producer.access-key"
+  secretKey = "SK" // 该属性未设置，访问application中 "rocketmq.producer.secret-key"
+)
+public class StringConsumer implements RocketMQListener<String> {
+    @Override
+    public void onMessage(String message) {
+        System.out.printf("------- StringConsumer received: %s \n", message);
+    }
+}
+```
+
+这里消费是简单打印出来。
+
+接受 Message 携带的 String 消息：
+
+```java:MessageExtConsumer.java
+@Service
+@RocketMQMessageListener(
+  topic = "message-ext-topic",
+  selectorExpression = "tag1", // 选中 tag1，不选 tag0
+  consumerGroup = "${spring.application.name}-message-ext-consumer",
+  accessKey = "AK", // 该属性未设置，访问application中 "rocketmq.producer.access-key"
+  secretKey = "SK" // 该属性未设置，访问application中 "rocketmq.producer.secret-key"
+)
+public class MessageExtConsumer implements RocketMQListener<MessageExt>, RocketMQPushConsumerLifecycleListener {
+    @Override
+    public void onMessage(MessageExt message) {
+        System.out.printf("------- MessageExtConsumer received message, msgId: %s, body:%s \n", message.getMsgId(), new String(message.getBody()));
+    }
+
+    @Override
+    public void prepareStart(DefaultMQPushConsumer consumer) {
+        // 从当前时间开始消费
+        consumer.setConsumeFromWhere(ConsumeFromWhere.CONSUME_FROM_TIMESTAMP);
+        // 从指定的时间戳开始消费，默认为消费者启动之前的30分钟处开始消费。这里指定了当前时间
+        consumer.setConsumeTimestamp(UtilAll.timeMillisToHumanString3(System.currentTimeMillis()));
+    }
+}
+```
+
+这里的消息是主动从 broker 推送到消费者。
+
+接受自定义类型的消息：
+
+```java:OrderPaidEventConsumer.java
+@Service
+@RocketMQMessageListener(
+  topic = "${demo.rocketmq.orderTopic}", 
+  consumerGroup = "order-paid-consumer",
+  accessKey = "AK", // 该属性未设置，访问application中 "rocketmq.producer.access-key"
+  secretKey = "SK" // 该属性未设置，访问application中 "rocketmq.producer.secret-key"
+)
+public class OrderPaidEventConsumer implements RocketMQListener<OrderPaidEvent> {
+
+    @Override
+    public void onMessage(OrderPaidEvent orderPaidEvent) {
+        System.out.printf("------- OrderPaidEventConsumer received: %s \n", orderPaidEvent);
+    }
+}
+```
+
+从指定名称服务器接收消息：
+
+```java:StringConsumerNewNS.java
+@Service
+@RocketMQMessageListener(
+  nameServer = "${demo.rocketmq.myNameServer}", 
+  topic = "${demo.rocketmq.topic}", 
+  consumerGroup = "string_consumer",
+  accessKey = "AK", // 该属性未设置，访问application中 "rocketmq.producer.access-key"
+  secretKey = "SK" // 该属性未设置，访问application中 "rocketmq.producer.secret-key"
+)
+public class StringConsumerNewNS implements RocketMQListener<String> {
+    @Override
+    public void onMessage(String message) {
+        System.out.printf("------- StringConsumerNewNS received: %s \n", message);
+    }
+}
+```
+
+接受事务消息：
+
+```java:StringTransactionalConsumer.java
+@Service
+@RocketMQMessageListener(
+  topic = "${demo.rocketmq.transTopic}", 
+  consumerGroup = "string_trans_consumer",
+  accessKey = "AK", // 该属性未设置，访问application中 "rocketmq.producer.access-key"
+  secretKey = "SK" // 该属性未设置，访问application中 "rocketmq.producer.secret-key"
+)
+public class StringTransactionalConsumer implements RocketMQListener<String> {
+    @Override
+    public void onMessage(String message) {
+        System.out.printf("------- StringTransactionalConsumer received: %s \n", message);
+    }
+}
+```
+
+## 十一、总结
 
 Rocket MQ 重点在它的核心概念，生产者和消费者由应用代码完成消息发送和接受。
 
@@ -1161,7 +1543,13 @@ Rocket MQ 重点在它的核心概念，生产者和消费者由应用代码完�
 
 本文演示单节点 Rocket MQ 实例的 Docker 容器搭建，以及 web 控制台的搭建（rocketmq-dashboard）。还有常用功能快速上手，比如同步、异步和单向发送，广播消息，消息过滤，消息日志，事务消息，延迟调度消息，普通顺序消息，拉取和推送消息消费，以及消息批处理。
 
+RocketMQ整合Spring。生产者的核心是 `RocketMQTemplate`，结合主题、标签还有消息体来发送消息。
 
+消费者的核心是 实现 `RocketMQListener` 接口和 使用注解 `@RocketMQMessageListener`，在接口的方法写消费的行为，在注解设置消费需要的组名，主题名还有标签等。
+
+事务消息重点在生产者，需要实现 `RocketMQLocalTransactionListener` 接口和使用注解`@RocketMQTransactionListener`，在接口 `executeLocalTransaction` 方法中执行事务，需要返回事务状态 `RocketMQLocalTransactionState`，消息正确事务执行，返回 COMMIT；遇到错误需要中止，返回 ROLLBACK；处于 UNKNOWN 状态，需要调用 `checkLocalTransaction` 来回查。
+
+示例代码放在 [github](https://github.com/qinry/rocketmq-learning.git)
 
 ## 参考
 

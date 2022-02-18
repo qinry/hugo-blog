@@ -319,7 +319,7 @@ CMD ["./mvnw", "spring-boot:run", "-Dspring-boot.run.profiles=mysql", "-Dmaven.t
 docker run --rm -d \
 --name springboot-server \
 --network mysqlnet \
--e MYSQL_URL=jdbc://mysqlserver/petclinic \
+-e MYSQL_URL=jdbc:mysql://mysqlserver/petclinic \
 -p 8080:8080 java-docker
 ```
 
