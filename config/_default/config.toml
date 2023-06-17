@@ -16,6 +16,8 @@ enableEmoji = true
 paginate = 13
 rssLimit = 100
 
+ignoreFiles = ["\\.ds_store", "_.*"]
+
 enableGitInfo = false
 googleAnalytics = ""
 
